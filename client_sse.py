@@ -1,18 +1,22 @@
-import sseclient
-import requests
+import asyncio
+from mcp import ClientSession
+from mcp.client.sse import sse_client
 
-# Connect to SSE stream
-print("Connecting to server...")
-messages = sseclient.SSEClient("http://127.0.0.1:8000/sse")
+async def main():
+    print("Starting MCP client...")
 
-for msg in messages:
-    if msg.event == "tools":
-        print("Available tools:", msg.data)
+    async with sse_client("http://127.0.0.1:8000/sse") as (read_stream, write_stream):
+        async with ClientSession(read_stream, write_stream) as session:
+            await session.initialize()
 
-        # Test running the tools
-        r1 = requests.get("http://127.0.0.1:8000/run/add", params={"a": 5, "b": 7})
-        r2 = requests.get("http://127.0.0.1:8000/run/multiply", params={"a": 3, "b": 4})
+            tools = await session.list_tools()
+            print("Available tools:", [t.name for t in tools.tools])
 
-        print("add(5,7) =", r1.json())
-        print("multiply(3,4) =", r2.json())
-        break  # stop after first response
+            result_add = await session.call_tool("add", {"a": 5, "b": 7})
+            print("add(5,7) =", result_add.structuredContent["result"])
+
+            result_mul = await session.call_tool("multiply", {"a": 3, "b": 4})
+            print("multiply(3,4) =", result_mul.structuredContent["result"])
+
+if __name__ == "__main__":
+    asyncio.run(main())
